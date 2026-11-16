@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "http_server.hpp"
 #include <fstream>
 #include <sstream>
@@ -36,7 +37,7 @@ bool HttpServer::start(){if(running_)return true;
 #ifdef _WIN32
 WSADATA w; if(WSAStartup(MAKEWORD(2,2),&w)!=0)return false;
 #endif
-serverSocket_=static_cast<std::intptr_t>(socket(AF_INET,SOCK_STREAM,0));if(serverSocket_==INVALID_SOCKET)return false;int yes=1;setsockopt(serverSocket_,SOL_SOCKET,SO_REUSEADDR,reinterpret_cast<const char*>(&yes),sizeof(yes));sockaddr_in a{};a.sin_family=AF_INET;a.sin_addr.s_addr=htonl(INADDR_LOOPBACK);a.sin_port=htons(static_cast<unsigned short>(port_));if(bind(serverSocket_,reinterpret_cast<sockaddr*>(&a),sizeof(a))<0||listen(serverSocket_,16)<0){closeSock(serverSocket_);serverSocket_=-1;return false;}running_=true;thread_=std::thread(&HttpServer::run,this);return true;}
+serverSocket_=static_cast<std::intptr_t>(socket(AF_INET,SOCK_STREAM,0));if(serverSocket_==INVALID_SOCKET)return false;int yes=1;setsockopt(serverSocket_,SOL_SOCKET,SO_REUSEADDR,reinterpret_cast<const char*>(&yes),sizeof(yes));sockaddr_in a{};a.sin_family=AF_INET;a.sin_addr.s_addr=htonl(INADDR_ANY);a.sin_port=htons(static_cast<unsigned short>(port_));if(bind(serverSocket_,reinterpret_cast<sockaddr*>(&a),sizeof(a))<0||listen(serverSocket_,16)<0){closeSock(serverSocket_);serverSocket_=-1;return false;}running_=true;thread_=std::thread(&HttpServer::run,this);return true;}
 void HttpServer::stop(){running_=false;if(serverSocket_!=-1){
 #ifdef _WIN32
 shutdown(static_cast<SOCKET>(serverSocket_),SD_BOTH);
@@ -50,6 +51,12 @@ WSACleanup();
 }
 void HttpServer::run(){while(running_){sockaddr_in a{};socklen_type n=sizeof(a);SOCKET c=accept(serverSocket_,reinterpret_cast<sockaddr*>(&a),&n);if(c==INVALID_SOCKET){if(!running_)break;continue;}handleClient(c);closeSock(c);}}
 void HttpServer::handleClient(std::intptr_t raw){SOCKET c=static_cast<SOCKET>(raw);char buf[16384];int n=recv(c,buf,sizeof(buf)-1,0);if(n<=0)return;buf[n]='\0';std::string req(buf,n);auto lineEnd=req.find("\r\n");std::string first=req.substr(0,lineEnd);std::istringstream ls(first);std::string method,path,ver;ls>>method>>path>>ver;auto q=path.find('?');if(q!=std::string::npos)path.resize(q);auto hdr=req.find("\r\n\r\n");std::string body=hdr==std::string::npos?"":req.substr(hdr+4);
+ const char* readOnlyEnv=std::getenv("AEGIS_READ_ONLY");
+ if(readOnlyEnv && std::string(readOnlyEnv)=="1" &&
+    method!="GET" && method!="HEAD"){
+     reply(c,"{\"ok\":false,\"error\":\"read-only demo\"}","application/json",403);
+     return;
+ }
  if(path=="/api/status")reply(c,engine_.statusJson());else if(path=="/api/events")reply(c,engine_.eventsJson());else if(path=="/api/traffic")reply(c,engine_.trafficJson());else if(path=="/api/rules")reply(c,engine_.rulesJson());
  else if(method=="POST"&&path=="/api/event/status"){auto id=val(body,"id");bool ok=false;try{ok=engine_.updateEvent(std::stoull(id),decode(val(body,"status")));}catch(...){}reply(c,ok?"{\"ok\":true}":"{\"ok\":false}","application/json",ok?200:400);}
  else if(method=="POST"&&path=="/api/rule/toggle"){bool ok=engine_.setRuleEnabled(decode(val(body,"id")),val(body,"enabled")=="true");reply(c,ok?"{\"ok\":true}":"{\"ok\":false}","application/json",ok?200:400);}

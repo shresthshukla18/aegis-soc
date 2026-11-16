@@ -1,3 +1,12 @@
+## 🚀 Live Demo
+
+**[Open AEGIS SOC Dashboard](https://aegis-soc-demo.onrender.com)**
+
+Explore the hosted SOC dashboard in simulation mode.
+No installation required.
+
+
+
 # AEGIS SOC
 
 **A lightweight C++20 network intrusion-detection prototype with a browser-based SOC dashboard.**
