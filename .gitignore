@@ -1,0 +1,7 @@
+build/
+*.log
+*.pcap
+*.pcapng
+.DS_Store
+.vs/
+.vscode/
